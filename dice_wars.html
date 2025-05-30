@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>🎲 Dice Wars</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #eaeff2;
+      text-align: center;
+    }
+    h1 {
+      background-color: #2c3e50;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      grid-template-rows: repeat(5, 60px);
+      gap: 5px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .cell {
+      width: 60px;
+      height: 60px;
+      background-color: #bdc3c7;
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .player { background-color: #3498db; }
+    .bot { background-color: #e74c3c; }
+    .highlight { outline: 3px solid yellow; }
+    #log {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎲 Dice Wars: Игрок vs Бот</h1>
+  <div id="board"></div>
+  <div id="log">Ваш ход: выберите свою клетку</div>
+
+  <script>
+    const size = 5;
+    const board = [];
+    const boardEl = document.getElementById("board");
+    const logEl = document.getElementById("log");
+    let selected = null;
+
+    function rand(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function initBoard() {
+      for (let i = 0; i < size * size; i++) {
+        const owner = i % 2 === 0 ? "player" : "bot";
+        const dice = rand(1, 6);
+        board.push({ owner, dice });
+      }
+      render();
+    }
+
+    function render() {
+      boardEl.innerHTML = "";
+      board.forEach((cell, i) => {
+        const div = document.createElement("div");
+        div.className = `cell ${cell.owner}`;
+        div.textContent = cell.dice;
+        div.dataset.index = i;
+        div.onclick = () => handleClick(i);
+        boardEl.appendChild(div);
+      });
+    }
+
+    function handleClick(index) {
+      const cell = board[index];
+
+      if (selected === null) {
+        if (cell.owner === "player") {
+          selected = index;
+          highlightMoves(index);
+          logEl.textContent = "Выберите соседнюю вражескую клетку для атаки";
+        }
+      } else {
+        if (index !== selected && isNeighbor(selected, index) && board[index].owner === "bot") {
+          attack(selected, index);
+          selected = null;
+        } else {
+          selected = null;
+          render();
+          logEl.textContent = "Ход отменён. Выберите свою клетку";
+        }
+      }
+    }
+
+    function highlightMoves(index) {
+      render();
+      const neighbors = getNeighbors(index);
+      neighbors.forEach(i => {
+        if (board[i].owner !== board[index].owner) {
+          boardEl.children[i].classList.add("highlight");
+        }
+      });
+      boardEl.children[index].classList.add("highlight");
+    }
+
+    function isNeighbor(a, b) {
+      const [ax, ay] = [a % size, Math.floor(a / size)];
+      const [bx, by] = [b % size, Math.floor(b / size)];
+      return Math.abs(ax - bx) + Math.abs(ay - by) === 1;
+    }
+
+    function getNeighbors(index) {
+      const x = index % size;
+      const y = Math.floor(index / size);
+      const neighbors = [];
+      if (x > 0) neighbors.push(index - 1);
+      if (x < size - 1) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - size);
+      if (y < size - 1) neighbors.push(index + size);
+      return neighbors;
+    }
+
+    function attack(from, to) {
+      const playerRoll = rand(1, board[from].dice);
+      const botRoll = rand(1, board[to].dice);
+
+      if (playerRoll >= botRoll) {
+        board[to].owner = "player";
+        board[to].dice = board[from].dice - 1;
+        board[from].dice = 1;
+        logEl.textContent = `Вы выиграли бой (${playerRoll} vs ${botRoll})! Ход бота...`;
+      } else {
+        board[from].dice = 1;
+        logEl.textContent = `Вы проиграли (${playerRoll} vs ${botRoll}). Ход бота...`;
+      }
+
+      render();
+      setTimeout(botTurn, 1000);
+    }
+
+    function botTurn() {
+      const botCells = board
+        .map((cell, i) => ({ ...cell, index: i }))
+        .filter(c => c.owner === "bot");
+
+      for (let b of botCells) {
+        const neighbors = getNeighbors(b.index)
+          .filter(i => board[i].owner === "player");
+
+        if (neighbors.length > 0) {
+          const target = neighbors[rand(0, neighbors.length - 1)];
+          const botRoll = rand(1, b.dice);
+          const playerRoll = rand(1, board[target].dice);
+
+          if (botRoll >= playerRoll) {
+            board[target].owner = "bot";
+            board[target].dice = b.dice - 1;
+            board[b.index].dice = 1;
+            logEl.textContent = `Бот атакует (${botRoll} vs ${playerRoll}) и захватывает клетку! Ваш ход.`;
+          } else {
+            board[b.index].dice = 1;
+            logEl.textContent = `Бот атакует (${botRoll} vs ${playerRoll}) и проигрывает. Ваш ход.`;
+          }
+          break;
+        }
+      }
+
+      render();
+    }
+
+    initBoard();
+  </script>
+</body>
+</html>
